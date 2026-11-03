@@ -2,7 +2,7 @@
 
 Bachs Payments for WooCommerce adds Bachs hosted checkout to a WooCommerce store. The plugin creates checkout sessions on the server, sends customers to Bachs to enter payment details, and updates orders after signed Bachs notifications or authenticated reconciliation.
 
-> **Release status:** 0.1.0 is an early release for Sandbox evaluation. Validate the complete checkout and webhook flow with your Bachs account before enabling Live payments.
+> **Current source version:** 0.2.0. This integration is intended to be evaluated in Sandbox first. Verify checkout, webhooks, refunds, and any enabled merchant tools against your Bachs account before using them in Live.
 
 ## Contents
 
@@ -11,11 +11,13 @@ Bachs Payments for WooCommerce adds Bachs hosted checkout to a WooCommerce store
 - [Install the plugin](#install-the-plugin)
 - [Configure Sandbox](#configure-sandbox)
 - [Configure API keys and webhook secrets](#configure-api-keys-and-webhook-secrets)
+- [Bachs merchant tools](#bachs-merchant-tools)
 - [How checkout works](#how-checkout-works)
 - [Refund an order](#refund-an-order)
 - [Reconcile an order](#reconcile-an-order)
 - [Security and customer data](#security-and-customer-data)
 - [Known limitations and roadmap](#known-limitations-and-roadmap)
+- [Node.js and Python packages](#nodejs-and-python-packages)
 - [Troubleshooting](#troubleshooting)
 - [Developer notes](#developer-notes)
 - [Contributing and security reports](#contributing-and-security-reports)
@@ -32,7 +34,7 @@ Bachs Payments for WooCommerce adds Bachs hosted checkout to a WooCommerce store
 - Manual payment and refund reconciliation against the Bachs API.
 - Classic checkout, Cart and Checkout Blocks registration, and HPOS compatibility declarations.
 
-The first release covers the payment gateway workflow. It does not reproduce every tool in the Bachs dashboard. See [Known limitations and roadmap](#known-limitations-and-roadmap) for features that need separate WooCommerce workflows.
+The gateway provides one-time WooCommerce payments plus a manager-only screen for selected Bachs merchant resources. It does not reproduce every Bachs dashboard or API feature. See [Known limitations and roadmap](#known-limitations-and-roadmap) for workflows that need a separate integration.
 
 ## Requirements
 
@@ -44,21 +46,29 @@ The first release covers the payment gateway workflow. It does not reproduce eve
 
 ## Install the plugin
 
-### Install the release ZIP in WordPress
+### Install from GitHub source
 
-Use the plugin ZIP attached to the GitHub release. The repository also includes a versioned ZIP for the current 0.1.0 release.
+Clone the public repository directly into the WordPress plugins directory:
 
-1. Sign in to WordPress with an administrator account.
-2. Open **Plugins → Add New Plugin → Upload Plugin**.
-3. Select `bachs-woocommerce-0.1.0.zip`, then choose **Install Now**.
-4. Select **Activate Plugin** after installation completes.
-5. Confirm that WooCommerce is active. The gateway settings are under **WooCommerce → Settings → Payments → Bachs**.
+```bash
+git clone https://github.com/iamnelsonizah/bachs-woocommerce.git wp-content/plugins/bachs-woocommerce
+```
 
-The release archive contains a `bachs-woocommerce/` folder. Upload that archive, not the whole GitHub source archive.
+Or download the repository ZIP from **Code → Download ZIP**, extract it, and rename the extracted `bachs-woocommerce-main` folder to `bachs-woocommerce` before uploading it to `wp-content/plugins/`. In WordPress, activate **Bachs Payments for WooCommerce** under **Plugins → Installed Plugins**.
+
+To install through **Plugins → Add New Plugin → Upload Plugin**, first package the checked-out source revision as a plugin ZIP:
+
+```bash
+git archive --format=zip --prefix=bachs-woocommerce/ HEAD --output=bachs-woocommerce.zip
+```
+
+Upload `bachs-woocommerce.zip` in WordPress. The archive must contain a top-level `bachs-woocommerce/` directory with `bachs-woocommerce.php` directly inside it. When a versioned ZIP is attached to a GitHub Release, download that asset and upload it the same way.
+
+After activation, confirm WooCommerce is active. Gateway settings are under **WooCommerce → Settings → Payments → Bachs**; merchant tools are under **WooCommerce → Bachs tools**.
 
 ### Install manually
 
-Extract the release ZIP and copy its `bachs-woocommerce` folder into:
+Copy the `bachs-woocommerce` plugin folder into:
 
 ```text
 wp-content/plugins/bachs-woocommerce/
@@ -69,13 +79,13 @@ The main plugin file should be at `wp-content/plugins/bachs-woocommerce/bachs-wo
 ### Install with WP-CLI
 
 ```bash
-wp plugin install /path/to/bachs-woocommerce-0.1.0.zip --activate
+wp plugin install /path/to/bachs-woocommerce.zip --activate
 ```
 
-For development, clone the source into the plugins directory. Replace the URL below with the published repository URL:
+For development, clone the source into the plugins directory:
 
 ```bash
-git clone <repository-url> wp-content/plugins/bachs-woocommerce
+git clone https://github.com/iamnelsonizah/bachs-woocommerce.git wp-content/plugins/bachs-woocommerce
 ```
 
 ## Configure Sandbox
@@ -123,8 +133,35 @@ Create restricted keys with only the scopes this integration uses:
 | `payments:read` | Reconcile payment state and check refund eligibility. |
 | `refunds:write` | Request full or partial refunds. |
 | `refunds:read` | Reconcile asynchronous refund state. |
+| `products:read` | List Bachs catalog products in the merchant tools. |
+| `products:write` | Create Bachs catalog products. |
+| `customers:write` | Create short-lived customer portal sessions for known Bachs customer IDs. |
+| `disputes:read` | List and retrieve disputes. |
+| `disputes:write` | Upload evidence, update it, and submit a dispute response. |
+| `balance:read` | Read available and pending balances. |
+| `balance:write` | Update automatic payout schedules. |
+| `payouts:read` | List payout destinations and payout history. |
+| `payouts:write` | Create a confirmed payout. |
+| `virtual_accounts:read` | Retrieve the stored merchant virtual account. |
+| `virtual_accounts:write` | Create or retrieve the merchant virtual account. |
 
-The plugin does not require `webhooks:write`; create webhook destinations in the Bachs Developer Portal.
+The plugin does not require `webhooks:write`; create webhook destinations in the Bachs Developer Portal. The current Bachs permissions reference does not list scope names for its subscription or account checkout-settings endpoints. Check the permissions shown in your Bachs account or ask Bachs support before enabling those tabs. See the [Bachs API permissions reference](https://docs.bachs.io/api-reference/permissions).
+
+### Bachs merchant tools
+
+The **WooCommerce → Bachs tools** page is available to users with the `manage_woocommerce` capability. It uses the API key for the currently selected Sandbox or Live environment. Give each key only the permissions needed for the tabs the store will use.
+
+| Tab | What it does | Important behavior |
+| --- | --- | --- |
+| Products | List and create fixed-price or recurring Bachs catalog products. | Bachs catalog records are separate from WooCommerce products and prices. |
+| Subscriptions | List Bachs subscriptions and cancel now or at period end. | This is account administration; it does not create WooCommerce subscription orders or change customer access. |
+| Disputes | Review disputes, upload PDF/JPEG/PNG/GIF evidence (up to 10 MB), save evidence, and submit a response. | Submission is explicit and may be final. Evidence files are sent directly to Bachs, not stored in the WordPress media library. |
+| Balances and payouts | View balances, payout destinations and payout history; submit or reconcile a payout; view or update automatic payout schedules. | Payouts move merchant funds. The form requires confirmation, a usable destination, and a unique reference. Schedules automatically send eligible settled collections to the default destination. Fees are additional. |
+| Virtual account | Create or retrieve the merchant's fixed NGN virtual account. | The account is shared at merchant level, not created per WooCommerce customer. Availability depends on the Bachs account. |
+| Checkout settings | View and update enabled Bachs payment methods, currencies, and fee preference. | These settings apply to the Bachs account and may affect other integrations. |
+| Customer portal | Create a short-lived billing portal link for a Bachs customer ID. | Enter the ID from Bachs; the plugin does not yet map WooCommerce customers to Bachs customers. Share the generated link only with that customer. |
+
+The payout retry control retains the original payload and idempotency key after an uncertain response. Check Bachs payout history by reference before retrying. Crypto refund retries likewise require the saved address and original request details; reconcile an uncertain refund with Bachs before changing any of them.
 
 ### Store credentials in `wp-config.php`
 
@@ -186,7 +223,7 @@ Matched events update the relevant WooCommerce order. Unknown orders are acknowl
 
 Bachs refunds are asynchronous. The plugin creates the WooCommerce refund record only after Bachs confirms that funds reached the customer. If a request times out, retrying first checks Bachs by charge. A failed refund can be retried; a request still processing cannot.
 
-**Review the refund limit before submitting:** Bachs permits one refund that has not failed per charge. A partial refund uses that operation, so the remaining balance cannot later be refunded in a second operation. Refund availability depends on the payment method. Crypto refunds require a destination wallet address, which this release does not collect.
+**Review the refund limit before submitting:** Bachs permits one refund that has not failed per charge. A partial refund uses that operation, so the remaining balance cannot later be refunded in a second operation. Refund availability depends on the payment method. Crypto refunds require a destination wallet address; confirm the address and network with the customer before submitting it. The plugin stores the address in protected WooCommerce order metadata while the refund is pending and removes it after a confirmed refund.
 
 ## Reconcile an order
 
@@ -211,17 +248,30 @@ The integration sends checkout and billing data to Bachs and receives signed pay
 
 ## Known limitations and roadmap
 
-The plugin currently provides a one-time WooCommerce gateway. These Bachs product areas are not implemented as WooCommerce workflows in this release:
+This plugin covers the one-time WooCommerce gateway and the merchant tools listed above. It does not yet implement these broader workflows:
 
-- Recurring subscriptions, billing lifecycle, and customer portal sessions.
-- Customer and product catalog synchronization.
-- Dispute viewing and evidence submission.
-- Balance views, payout creation, payout schedules, and payout destinations.
+- WooCommerce Subscriptions integration: subscription checkout, renewal orders, token/payment-method lifecycle, cancellation synchronization, retries, and access/entitlement updates. The admin tab only lists and cancels subscriptions created in Bachs.
+- WooCommerce customer and product synchronization with Bachs. Product creation in the admin tab is a Bachs-side catalog action only.
+- Automatic association of a WooCommerce customer with a Bachs customer or subscription, including automatic customer portal links.
+- Payout destination creation or editing and cross-currency payout quotes for manual payouts.
 - Connected accounts, persons, transfers, and platform fees for marketplace use.
-- Virtual-account administration and Bachs account checkout settings.
-- Crypto refund destination collection.
+- Per-customer virtual accounts and automatic matching of virtual-account deposits to WooCommerce orders.
+- Automated dispute evidence collection from WooCommerce order, fulfillment, or support records.
 
-Bachs exposes these capabilities through separate API product areas. Supporting them cleanly requires additional WooCommerce subscription, marketplace, or merchant administration designs. The list of Bachs API areas is in the [Bachs API reference](https://docs.bachs.io/).
+The API reference covers additional Bachs resources that may be added in separate releases. An account's available resources and permissions depend on its Bachs configuration. Do not infer support for a feature from the presence of a corresponding Bachs API endpoint.
+
+## Node.js and Python packages
+
+This repository is a **PHP WordPress plugin**, so install it into WordPress as a plugin folder or ZIP. `npm install` and `pip install` do not install a WooCommerce plugin.
+
+Bachs publishes separate server-side SDK packages for applications written in Node.js or Python. Those SDKs call the Bachs API from those applications; they do not install, configure, or extend this WooCommerce plugin:
+
+```bash
+npm install @bachs/sdk
+pip install bachs
+```
+
+The official announcement lists Node.js 22+ and Python 3.10+ requirements. See [Bachs SDK announcement](https://bachs.io/blog/bachs-sdks-nodejs-python), [Node SDK documentation](https://docs.bachs.io/sdks/node), and [Python SDK documentation](https://docs.bachs.io/sdks/python).
 
 ## Troubleshooting
 
@@ -269,6 +319,7 @@ The plugin has no Composer dependencies or JavaScript build step. Main code area
 | `includes/class-bachs-order-service.php` | Order mapping, payment transitions, and refund recording. |
 | `includes/class-bachs-admin-order-actions.php` | Manual payment/refund reconciliation. |
 | `includes/class-bachs-admin-refund-panel.php` | Refund controls on classic and HPOS order screens. |
+| `includes/class-bachs-admin-tools.php` | Protected admin workflows for selected Bachs merchant resources. |
 | `includes/class-bachs-blocks-support.php` | Conditional Checkout Blocks registration. |
 | `assets/js/` | Small no-build scripts for Checkout Blocks and overlay feedback. |
 

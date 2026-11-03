@@ -332,9 +332,10 @@ final class WC_Gateway_Bachs extends WC_Payment_Gateway {
 	 * @param int $order_id WooCommerce order ID.
 	 * @param string|null $amount Requested partial amount, or empty for full refund.
 	 * @param string $reason Merchant reason.
+	 * @param string $refund_address Optional crypto refund destination.
 	 * @return bool|WP_Error
 	 */
-	public function request_bachs_refund( $order_id, $amount = '', $reason = '' ) {
+	public function request_bachs_refund( $order_id, $amount = '', $reason = '', $refund_address = '' ) {
 		$order = wc_get_order( $order_id );
 		if ( ! $order instanceof WC_Order ) {
 			return new WP_Error( 'bachs_order_missing', __( 'The WooCommerce order could not be loaded.', 'bachs-woocommerce' ) );
@@ -346,6 +347,10 @@ final class WC_Gateway_Bachs extends WC_Payment_Gateway {
 		}
 
 		$current_status = (string) $order->get_meta( Bachs_Order_Service::META_REFUND_STATUS, true );
+		$refund_address = trim( (string) $refund_address );
+		if ( strlen( $refund_address ) > 255 || preg_match( '/[\x00-\x1F\x7F]/', $refund_address ) ) {
+			return new WP_Error( 'bachs_refund_address_invalid', __( 'The crypto refund wallet address is invalid or too long.', 'bachs-woocommerce' ) );
+		}
 		if ( in_array( $current_status, array( 'recording', 'processing', 'success' ), true ) ) {
 			return new WP_Error( 'bachs_refund_exists', __( 'Bachs already has a pending or successful refund for this charge.', 'bachs-woocommerce' ) );
 		}
@@ -369,7 +374,19 @@ final class WC_Gateway_Bachs extends WC_Payment_Gateway {
 					}
 				}
 
+				$payment = $api->retrieve_payment( $charge_id );
+				$requires_refund_address = self::payment_requires_crypto_refund_address( $payment );
+				$saved_address = (string) $order->get_meta( Bachs_Order_Service::META_REFUND_ADDRESS, true );
+				if ( '' !== $refund_address && $refund_address !== $saved_address ) {
+					return new WP_Error( 'bachs_refund_retry_payload_changed', __( 'The wallet address cannot be changed while retrying an uncertain refund. Reconcile the original request with Bachs first.', 'bachs-woocommerce' ) );
+				}
+				if ( $requires_refund_address && '' === $saved_address ) {
+					return new WP_Error( 'bachs_crypto_refund_address_missing', __( 'The original crypto refund wallet address is missing. Reconcile the original request with Bachs before retrying.', 'bachs-woocommerce' ) );
+				}
 				$payload = array( 'charge_id' => $charge_id );
+				if ( $requires_refund_address ) {
+					$payload['refund_address'] = $saved_address;
+				}
 				$saved_reason = (string) $order->get_meta( Bachs_Order_Service::META_REFUND_REASON, true );
 				$saved_amount = (string) $order->get_meta( Bachs_Order_Service::META_REFUND_AMOUNT, true );
 				$full_amount  = wc_format_decimal( $order->get_total(), wc_get_price_decimals() );
@@ -379,8 +396,15 @@ final class WC_Gateway_Bachs extends WC_Payment_Gateway {
 				if ( '' !== $saved_amount && ! self::decimal_values_match( $saved_amount, $full_amount ) ) {
 					$payload['amount'] = $saved_amount;
 				}
-				$payload['reference'] = (string) $order->get_meta( Bachs_Order_Service::META_REFUND_REFERENCE, true );
-				$payload['idempotency_key'] = (string) $order->get_meta( Bachs_Order_Service::META_REFUND_IDEMPOTENCY, true );
+				$fingerprint = hash( 'sha256', wp_json_encode( $payload ) );
+				$stored_fingerprint = (string) $order->get_meta( Bachs_Order_Service::META_REFUND_FINGERPRINT, true );
+				$reference = (string) $order->get_meta( Bachs_Order_Service::META_REFUND_REFERENCE, true );
+				$idempotency = (string) $order->get_meta( Bachs_Order_Service::META_REFUND_IDEMPOTENCY, true );
+				if ( '' === $stored_fingerprint || ! hash_equals( $stored_fingerprint, $fingerprint ) || '' === $reference || '' === $idempotency ) {
+					return new WP_Error( 'bachs_refund_retry_payload_changed', __( 'The saved refund details no longer match the original request. Reconcile with Bachs before taking any further action.', 'bachs-woocommerce' ) );
+				}
+				$payload['reference'] = $reference;
+				$payload['idempotency_key'] = $idempotency;
 				if ( '' === $payload['reference'] || '' === $payload['idempotency_key'] ) {
 					return new WP_Error( 'bachs_refund_retry_missing_key', __( 'The original refund request key is missing. Reconcile the order with Bachs before creating a new request.', 'bachs-woocommerce' ) );
 				}
@@ -399,6 +423,13 @@ final class WC_Gateway_Bachs extends WC_Payment_Gateway {
 			$payload = array(
 				'charge_id' => $charge_id,
 			);
+			$requires_refund_address = self::payment_requires_crypto_refund_address( $payment );
+			if ( $requires_refund_address ) {
+				if ( '' === $refund_address ) {
+					return new WP_Error( 'bachs_crypto_refund_address_required', __( 'Enter the customer’s crypto refund wallet address before requesting this refund.', 'bachs-woocommerce' ) );
+				}
+				$payload['refund_address'] = $refund_address;
+			}
 			$clean_reason = sanitize_textarea_field( $reason );
 			if ( '' !== $clean_reason ) {
 				$payload['reason'] = substr( $clean_reason, 0, 500 );
@@ -448,6 +479,10 @@ final class WC_Gateway_Bachs extends WC_Payment_Gateway {
 
 			$payload['reference']        = $reference;
 			$payload['idempotency_key'] = $idempotency;
+			if ( $requires_refund_address ) {
+				$order->update_meta_data( Bachs_Order_Service::META_REFUND_ADDRESS, $refund_address );
+				$order->save();
+			}
 			return $this->persist_refund_response( $order, $api->create_refund( $payload ) );
 		} catch ( Bachs_Api_Exception $exception ) {
 			// The saved idempotency key is intentionally retained after a timeout.
@@ -460,6 +495,48 @@ final class WC_Gateway_Bachs extends WC_Payment_Gateway {
 			}
 			return new WP_Error( 'bachs_refund_state_failed', __( 'Bachs returned a refund state that WooCommerce could not record. Reconcile the order with Bachs before retrying.', 'bachs-woocommerce' ) );
 		}
+	}
+
+	/**
+	 * Detect whether a payment needs a destination for a crypto refund.
+	 *
+	 * Bachs represents some crypto currencies with a network suffix and others
+	 * with a ticker. Payment method details are checked as a fallback because a
+	 * crypto payment can be denominated in a fiat settlement currency.
+	 *
+	 * @param array $payment Bachs payment response.
+	 * @return bool
+	 */
+	private static function payment_requires_crypto_refund_address( $payment ) {
+		$currency = isset( $payment['currency'] ) && is_scalar( $payment['currency'] ) ? strtoupper( (string) $payment['currency'] ) : '';
+		if ( preg_match( '/^(BTC|ETH|SOL|BNB|USDC|USDT)(?:_[A-Z0-9]+)?$/', $currency ) || ( '' !== $currency && ! preg_match( '/^[A-Z]{3}$/', $currency ) ) ) {
+			return true;
+		}
+
+		$method_values = array();
+		foreach ( array( 'payment_method', 'payment_method_type', 'method' ) as $key ) {
+			if ( isset( $payment[ $key ] ) && is_scalar( $payment[ $key ] ) ) {
+				$method_values[] = strtolower( (string) $payment[ $key ] );
+			}
+		}
+		if ( isset( $payment['payment_method_details'] ) && is_array( $payment['payment_method_details'] ) ) {
+			foreach ( $payment['payment_method_details'] as $detail_key => $value ) {
+				if ( false !== strpos( strtolower( (string) $detail_key ), 'crypto' ) ) {
+					return true;
+				}
+				if ( is_scalar( $value ) ) {
+					$method_values[] = strtolower( (string) $value );
+				}
+			}
+		}
+
+		foreach ( $method_values as $method ) {
+			if ( false !== strpos( $method, 'crypto' ) || false !== strpos( $method, 'stablecoin' ) ) {
+				return true;
+			}
+		}
+
+		return false;
 	}
 
 	/**

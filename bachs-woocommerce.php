@@ -3,7 +3,7 @@
  * Plugin Name: Bachs Payments for WooCommerce
  * Plugin URI:  https://bachs.io/
  * Description: Accept WooCommerce payments through Bachs hosted or overlay checkout.
- * Version:     0.1.0
+ * Version:     0.2.0
  * Requires at least: 6.2
  * Requires PHP: 7.4
  * WC requires at least: 8.0
@@ -17,7 +17,7 @@ if ( ! defined( 'ABSPATH' ) ) {
 	exit;
 }
 
-define( 'BACHS_WC_VERSION', '0.1.0' );
+define( 'BACHS_WC_VERSION', '0.2.0' );
 define( 'BACHS_WC_FILE', __FILE__ );
 define( 'BACHS_WC_PATH', plugin_dir_path( __FILE__ ) );
 define( 'BACHS_WC_URL', plugin_dir_url( __FILE__ ) );
@@ -31,6 +31,7 @@ require_once BACHS_WC_PATH . 'includes/class-bachs-webhook-controller.php';
 require_once BACHS_WC_PATH . 'includes/class-bachs-blocks-support.php';
 require_once BACHS_WC_PATH . 'includes/class-bachs-admin-order-actions.php';
 require_once BACHS_WC_PATH . 'includes/class-bachs-admin-refund-panel.php';
+require_once BACHS_WC_PATH . 'includes/class-bachs-admin-tools.php';
 
 /**
  * Register the gateway only after WooCommerce has loaded.
@@ -51,6 +52,7 @@ function bachs_wc_initialize() {
 	Bachs_Blocks_Support::register_hooks();
 	Bachs_Admin_Order_Actions::register_hooks();
 	Bachs_Admin_Refund_Panel::register_hooks();
+	Bachs_Admin_Tools::register_hooks();
 }
 add_action( 'plugins_loaded', 'bachs_wc_initialize', 11 );
 

@@ -28,6 +28,7 @@ final class Bachs_Order_Service {
 	const META_REFUND_STATUS     = '_bachs_refund_status';
 	const META_REFUND_AMOUNT     = '_bachs_refund_amount';
 	const META_REFUND_REASON     = '_bachs_refund_reason';
+	const META_REFUND_ADDRESS    = '_bachs_refund_address';
 	const META_REFUND_LOCAL_ID   = '_bachs_refund_local_id';
 	const META_EVENT_IDS         = '_bachs_processed_event_ids';
 
@@ -533,6 +534,10 @@ final class Bachs_Order_Service {
 		}
 
 		$order->update_meta_data( self::META_REFUND_STATUS, $status );
+		if ( 'success' === $status ) {
+			// The wallet address is needed only until the refund is confirmed.
+			$order->delete_meta_data( self::META_REFUND_ADDRESS );
+		}
 		if ( '' !== $refund_id ) {
 			$order->update_meta_data( self::META_REFUND_ID, $refund_id );
 		}

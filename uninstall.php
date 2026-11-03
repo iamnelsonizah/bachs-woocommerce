@@ -11,3 +11,4 @@ if ( ! defined( 'WP_UNINSTALL_PLUGIN' ) ) {
 }
 
 delete_option( 'woocommerce_bachs_settings' );
+delete_option( 'bachs_wc_admin_tool_state' );

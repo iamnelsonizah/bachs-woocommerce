@@ -103,6 +103,10 @@ final class Bachs_Admin_Refund_Panel {
 			echo '<p><label for="bachs-refund-reason"><strong>' . esc_html__( 'Reason', 'bachs-woocommerce' ) . '</strong></label><br>';
 			echo '<textarea class="widefat" rows="3" id="bachs-refund-reason" name="reason"></textarea></p>';
 		}
+		$refund_address = (string) $order->get_meta( Bachs_Order_Service::META_REFUND_ADDRESS, true );
+		echo '<p><label for="bachs-refund-address"><strong>' . esc_html__( 'Crypto refund wallet address', 'bachs-woocommerce' ) . '</strong></label><br>';
+		echo '<input type="text" class="widefat" id="bachs-refund-address" name="refund_address" maxlength="255" autocomplete="off" value="' . esc_attr( $refund_address ) . '">';
+		echo '<span class="description">' . esc_html__( 'Required only when Bachs reports that the original payment was made in cryptocurrency. Confirm the address and network with the customer before submitting.', 'bachs-woocommerce' ) . '</span></p>';
 		submit_button( $button, 'secondary', 'submit', false );
 		echo '</form>';
 	}
@@ -126,7 +130,8 @@ final class Bachs_Admin_Refund_Panel {
 
 		$amount = isset( $_POST['amount'] ) ? trim( (string) wp_unslash( $_POST['amount'] ) ) : '';
 		$reason = isset( $_POST['reason'] ) ? sanitize_textarea_field( wp_unslash( $_POST['reason'] ) ) : '';
-		$result = ( new WC_Gateway_Bachs() )->request_bachs_refund( $order_id, $amount, $reason );
+		$refund_address = isset( $_POST['refund_address'] ) ? sanitize_text_field( wp_unslash( $_POST['refund_address'] ) ) : '';
+		$result = ( new WC_Gateway_Bachs() )->request_bachs_refund( $order_id, $amount, $reason, $refund_address );
 		if ( is_wp_error( $result ) ) {
 			$order->add_order_note( $result->get_error_message() );
 			$state = 'error';
