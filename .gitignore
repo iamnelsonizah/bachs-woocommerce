@@ -1,0 +1,18 @@
+# Operating system and editor files.
+.DS_Store
+Thumbs.db
+.idea/
+.vscode/
+
+# Local WordPress and environment configuration.
+wp-config.php
+.env
+.env.*
+!.env.example
+
+# Local logs, caches, and generated development output.
+*.log
+.phpunit.cache/
+coverage/
+vendor/
+node_modules/
