@@ -26,7 +26,7 @@ final class WC_Gateway_Bachs extends WC_Payment_Gateway {
 
 		$this->enabled     = $this->get_option( 'enabled', 'no' );
 		$this->title       = $this->get_option( 'title', __( 'Bachs', 'bachs-woocommerce' ) );
-		$this->description = $this->get_option( 'description', __( 'Pay securely using Bachs checkout.', 'bachs-woocommerce' ) );
+		$this->description = $this->get_option( 'description', __( 'You will complete payment on Bachs secure checkout, then return to this store.', 'bachs-woocommerce' ) );
 
 		add_action( 'woocommerce_update_options_payment_gateways_' . $this->id, array( $this, 'process_admin_options' ) );
 		add_action( 'woocommerce_receipt_' . $this->id, array( $this, 'receipt_page' ) );
@@ -39,6 +39,11 @@ final class WC_Gateway_Bachs extends WC_Payment_Gateway {
 	 */
 	public function init_form_fields() {
 		$this->form_fields = array(
+			'checkout_section' => array(
+				'title'       => __( 'Customer checkout', 'bachs-woocommerce' ),
+				'type'        => 'title',
+				'description' => __( 'Choose how Bachs appears during checkout and what customers see in the payment-method list.', 'bachs-woocommerce' ),
+			),
 			'enabled' => array(
 				'title'   => __( 'Enable/Disable', 'bachs-woocommerce' ),
 				'type'    => 'checkbox',
@@ -56,7 +61,7 @@ final class WC_Gateway_Bachs extends WC_Payment_Gateway {
 				'title'       => __( 'Description', 'bachs-woocommerce' ),
 				'type'        => 'textarea',
 				'description' => __( 'Short instructions shown under the payment method.', 'bachs-woocommerce' ),
-				'default'     => __( 'Pay securely using Bachs checkout.', 'bachs-woocommerce' ),
+				'default'     => __( 'You will complete payment on Bachs secure checkout, then return to this store.', 'bachs-woocommerce' ),
 			),
 			'environment' => array(
 				'title'       => __( 'Environment', 'bachs-woocommerce' ),
@@ -78,6 +83,11 @@ final class WC_Gateway_Bachs extends WC_Payment_Gateway {
 					'overlay'  => __( 'Bachs overlay', 'bachs-woocommerce' ),
 				),
 			),
+			'sandbox_section' => array(
+				'title'       => __( 'Sandbox credentials', 'bachs-woocommerce' ),
+				'type'        => 'title',
+				'description' => __( 'Use Sandbox credentials for test orders. Sandbox and Live credentials are stored separately.', 'bachs-woocommerce' ),
+			),
 			'sandbox_secret_key' => array(
 				'title'       => __( 'Sandbox API key', 'bachs-woocommerce' ),
 				'type'        => 'bachs_secret',
@@ -93,6 +103,11 @@ final class WC_Gateway_Bachs extends WC_Payment_Gateway {
 				'type'        => 'bachs_secret',
 				'description' => __( 'Optional previous secret during a Bachs webhook secret rotation. Remove it when the overlap period ends.', 'bachs-woocommerce' ),
 			),
+			'live_section' => array(
+				'title'       => __( 'Live credentials', 'bachs-woocommerce' ),
+				'type'        => 'title',
+				'description' => __( 'Only add Live credentials after a successful Sandbox order and webhook check. Live payments require HTTPS.', 'bachs-woocommerce' ),
+			),
 			'live_secret_key' => array(
 				'title'       => __( 'Live API key', 'bachs-woocommerce' ),
 				'type'        => 'bachs_secret',
@@ -107,6 +122,11 @@ final class WC_Gateway_Bachs extends WC_Payment_Gateway {
 				'title'       => __( 'Previous Live webhook secret', 'bachs-woocommerce' ),
 				'type'        => 'bachs_secret',
 				'description' => __( 'Optional previous secret during a Bachs webhook secret rotation. Remove it when the overlap period ends.', 'bachs-woocommerce' ),
+			),
+			'webhook_section' => array(
+				'title'       => __( 'Webhook setup', 'bachs-woocommerce' ),
+				'type'        => 'title',
+				'description' => __( 'Use a separate webhook destination and signing secret for each Bachs environment.', 'bachs-woocommerce' ),
 			),
 			'webhook_url' => array(
 				'title' => __( 'Webhook endpoint', 'bachs-woocommerce' ),
@@ -288,7 +308,16 @@ final class WC_Gateway_Bachs extends WC_Payment_Gateway {
 
 		$checkout_url = (string) $order->get_meta( Bachs_Order_Service::META_CHECKOUT_URL, true );
 		if ( '' === $checkout_url ) {
-			echo '<p>' . esc_html__( 'The Bachs checkout session is missing. Return to checkout and try again.', 'bachs-woocommerce' ) . '</p>';
+			echo '<p>' . esc_html__( 'Your secure payment session is unavailable. Return to the payment page to try again.', 'bachs-woocommerce' ) . '</p>';
+			echo '<p><a class="button alt" href="' . esc_url( $order->get_checkout_payment_url() ) . '">' . esc_html__( 'Try payment again', 'bachs-woocommerce' ) . '</a></p>';
+			return;
+		}
+		$expires_at = (string) $order->get_meta( Bachs_Order_Service::META_CHECKOUT_EXPIRES, true );
+		$expires_timestamp = '' !== $expires_at ? strtotime( $expires_at ) : false;
+		$session_expired = false === $expires_timestamp || $expires_timestamp <= time();
+		if ( $session_expired ) {
+			echo '<p role="status">' . esc_html__( 'This secure payment session has expired. Return to the payment page to try again.', 'bachs-woocommerce' ) . '</p>';
+			echo '<p><a class="button alt" href="' . esc_url( $order->get_checkout_payment_url() ) . '">' . esc_html__( 'Try payment again', 'bachs-woocommerce' ) . '</a></p>';
 			return;
 		}
 
@@ -304,7 +333,7 @@ final class WC_Gateway_Bachs extends WC_Payment_Gateway {
 				'messages'    => array(
 					'completed' => __( 'Payment submitted. Returning to your order; the store will confirm it from Bachs.', 'bachs-woocommerce' ),
 					'failed'    => __( 'The payment did not complete. You can try again.', 'bachs-woocommerce' ),
-					'expired'   => __( 'This checkout session expired. Return to checkout and start a new payment.', 'bachs-woocommerce' ),
+					'expired'   => __( 'This checkout session expired. Return to the payment page to try again.', 'bachs-woocommerce' ),
 					'closed'    => __( 'Checkout closed. You can reopen it or use the hosted checkout link.', 'bachs-woocommerce' ),
 					'error'     => __( 'The Bachs checkout could not be opened. Use the hosted checkout link or try again.', 'bachs-woocommerce' ),
 					'loading'   => __( 'Opening Bachs secure checkout…', 'bachs-woocommerce' ),
@@ -318,7 +347,8 @@ final class WC_Gateway_Bachs extends WC_Payment_Gateway {
 		echo '<div class="bachs-wc-overlay">';
 		echo '<p id="bachs-wc-overlay-status" role="status" aria-live="polite">' . esc_html__( 'Continue to open Bachs secure checkout. Your payment is confirmed by the store after Bachs sends a signed notification.', 'bachs-woocommerce' ) . '</p>';
 		echo '<button type="button" class="button alt" id="bachs-wc-overlay-open">' . esc_html__( 'Open secure Bachs checkout', 'bachs-woocommerce' ) . '</button> ';
-		echo '<a href="' . esc_url( $checkout_url ) . '">' . esc_html__( 'Open the hosted checkout page instead', 'bachs-woocommerce' ) . '</a>';
+		echo '<a id="bachs-wc-overlay-hosted" href="' . esc_url( $checkout_url ) . '">' . esc_html__( 'Open the hosted checkout page instead', 'bachs-woocommerce' ) . '</a> ';
+		echo '<a class="button alt" id="bachs-wc-overlay-retry" href="' . esc_url( $order->get_checkout_payment_url() ) . '" hidden>' . esc_html__( 'Try payment again', 'bachs-woocommerce' ) . '</a>';
 		echo '</div>';
 	}
 

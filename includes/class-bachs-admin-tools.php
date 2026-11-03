@@ -20,7 +20,15 @@ final class Bachs_Admin_Tools {
 	/** Register the WooCommerce submenu and protected request handler. */
 	public static function register_hooks() {
 		add_action( 'admin_menu', array( __CLASS__, 'register_page' ) );
+		add_action( 'admin_enqueue_scripts', array( __CLASS__, 'enqueue_assets' ) );
 		add_action( 'admin_post_bachs_admin_tool', array( __CLASS__, 'handle_action' ) );
+	}
+
+	/** Load the setup overview styles only on the Bachs tools screen. */
+	public static function enqueue_assets( $hook_suffix ) {
+		if ( false !== strpos( (string) $hook_suffix, self::PAGE_SLUG ) ) {
+			wp_enqueue_style( 'bachs-wc-admin-tools', BACHS_WC_URL . 'assets/css/admin-tools.css', array(), BACHS_WC_VERSION );
+		}
 	}
 
 	/** Add a single entry point for Bachs merchant resources. */
@@ -42,6 +50,7 @@ final class Bachs_Admin_Tools {
 		}
 
 		$tabs = array(
+			'overview'      => __( 'Overview', 'bachs-woocommerce' ),
 			'products'      => __( 'Products', 'bachs-woocommerce' ),
 			'subscriptions' => __( 'Subscriptions', 'bachs-woocommerce' ),
 			'disputes'      => __( 'Disputes', 'bachs-woocommerce' ),
@@ -50,9 +59,9 @@ final class Bachs_Admin_Tools {
 			'checkout'      => __( 'Checkout settings', 'bachs-woocommerce' ),
 			'portal'        => __( 'Customer portal', 'bachs-woocommerce' ),
 		);
-		$tab = isset( $_GET['tab'] ) ? sanitize_key( wp_unslash( $_GET['tab'] ) ) : 'products';
+		$tab = isset( $_GET['tab'] ) && is_scalar( $_GET['tab'] ) ? sanitize_key( (string) wp_unslash( $_GET['tab'] ) ) : 'overview';
 		if ( ! isset( $tabs[ $tab ] ) ) {
-			$tab = 'products';
+			$tab = 'overview';
 		}
 
 		echo '<div class="wrap"><h1>' . esc_html__( 'Bachs tools', 'bachs-woocommerce' ) . '</h1>';
@@ -63,6 +72,11 @@ final class Bachs_Admin_Tools {
 			echo '<a class="nav-tab ' . ( $tab === $key ? 'nav-tab-active' : '' ) . '" href="' . esc_url( $url ) . '">' . esc_html( $label ) . '</a>';
 		}
 		echo '</nav>';
+		if ( 'overview' === $tab ) {
+			self::render_overview();
+			echo '</div>';
+			return;
+		}
 
 		if ( '' === Bachs_Settings::api_key() ) {
 			echo '<div class="notice notice-warning"><p>' . esc_html__( 'Configure an API key for the selected Bachs environment in WooCommerce → Settings → Payments → Bachs before using these tools.', 'bachs-woocommerce' ) . '</p></div></div>';
@@ -98,6 +112,42 @@ final class Bachs_Admin_Tools {
 			self::render_api_error( $exception );
 		}
 
+		echo '</div>';
+	}
+
+	/** Give store managers one clear place to check setup and find next steps. */
+	private static function render_overview() {
+		$options = get_option( Bachs_Settings::OPTION_NAME, array() );
+		$options = is_array( $options ) ? $options : array();
+		$environment = Bachs_Settings::environment();
+		$expected_prefix = 'live' === $environment ? 'sk_live_' : 'sk_sandbox_';
+		$key_ready = 0 === strpos( Bachs_Settings::api_key(), $expected_prefix );
+		$webhook_ready = Bachs_Settings::has_current_webhook_secret();
+		$enabled = isset( $options['enabled'] ) && 'yes' === $options['enabled'];
+		$ssl_ready = 'live' !== $environment || is_ssl();
+		$settings_url = admin_url( 'admin.php?page=wc-settings&tab=checkout&section=bachs' );
+		$analytics_url = admin_url( 'admin.php?page=wc-admin&path=/analytics/overview' );
+		$checks = array(
+			array( __( 'Payment method enabled', 'bachs-woocommerce' ), $enabled ),
+			array( sprintf( __( '%s API key configured', 'bachs-woocommerce' ), ucfirst( $environment ) ), $key_ready ),
+			array( sprintf( __( '%s webhook secret configured', 'bachs-woocommerce' ), ucfirst( $environment ) ), $webhook_ready ),
+			array( __( 'Secure HTTPS checkout', 'bachs-woocommerce' ), $ssl_ready ),
+		);
+
+		echo '<div class="bachs-tools-overview">';
+		echo '<h2>' . esc_html__( 'Bachs payment setup', 'bachs-woocommerce' ) . '</h2>';
+		echo '<p>' . esc_html__( 'Use Sandbox to verify a complete customer payment first. Switch to Live after the order and signed webhook are both confirmed.', 'bachs-woocommerce' ) . '</p>';
+		echo '<p><a class="button button-primary" href="' . esc_url( $settings_url ) . '">' . esc_html__( 'Open payment settings', 'bachs-woocommerce' ) . '</a> <a class="button" href="' . esc_url( $analytics_url ) . '">' . esc_html__( 'View WooCommerce Analytics', 'bachs-woocommerce' ) . '</a></p>';
+		echo '<div class="bachs-tools-checks"><h3>' . esc_html__( 'Environment status', 'bachs-woocommerce' ) . '</h3><p><strong>' . esc_html__( 'Active environment:', 'bachs-woocommerce' ) . '</strong> ' . esc_html( ucfirst( $environment ) ) . '</p><ul>';
+		foreach ( $checks as $check ) {
+			$label = $check[0];
+			$passed = $check[1];
+			$symbol = $passed ? '✓' : '○';
+			$state = $passed ? __( 'Ready', 'bachs-woocommerce' ) : __( 'Needs attention', 'bachs-woocommerce' );
+			echo '<li><span aria-hidden="true">' . esc_html( $symbol ) . '</span> ' . esc_html( $label ) . ' <strong>' . esc_html( $state ) . '</strong></li>';
+		}
+		echo '</ul></div>';
+		echo '<div class="bachs-tools-next-steps"><h3>' . esc_html__( 'A simple launch checklist', 'bachs-woocommerce' ) . '</h3><ol><li>' . esc_html__( 'Add the matching Sandbox or Live API key and webhook signing secret in payment settings.', 'bachs-woocommerce' ) . '</li><li>' . esc_html__( 'Register the displayed webhook URL in Bachs and subscribe to the payment and refund events.', 'bachs-woocommerce' ) . '</li><li>' . esc_html__( 'Place a test order, complete checkout, and confirm WooCommerce updates the order after the signed webhook arrives.', 'bachs-woocommerce' ) . '</li></ol><p>' . esc_html__( 'Use WooCommerce Analytics for store sales, orders, and product performance. Bachs tools below are for account resources such as payouts, disputes, and virtual accounts.', 'bachs-woocommerce' ) . '</p></div>';
 		echo '</div>';
 	}
 

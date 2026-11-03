@@ -69,7 +69,7 @@ final class Bachs_Blocks_Payment_Method extends \Automattic\WooCommerce\Blocks\P
 	public function get_payment_method_data() {
 		return array(
 			'title'       => $this->setting( 'title', __( 'Bachs', 'bachs-woocommerce' ) ),
-			'description' => $this->setting( 'description', __( 'Pay securely using Bachs checkout.', 'bachs-woocommerce' ) ),
+			'description' => $this->setting( 'description', __( 'You will complete payment on Bachs secure checkout, then return to this store.', 'bachs-woocommerce' ) ),
 			'supports'    => array( 'products' ),
 		);
 	}

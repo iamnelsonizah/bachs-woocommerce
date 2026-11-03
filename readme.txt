@@ -3,7 +3,7 @@ Contributors: bachs
 Requires at least: 6.2
 Requires PHP: 7.4
 WC requires at least: 8.0
-Stable tag: 0.2.0
+Stable tag: 0.3.0
 License: GPLv2 or later
 License URI: https://www.gnu.org/licenses/gpl-2.0.html
 
@@ -37,6 +37,11 @@ This plugin connects to Bachs (`https://bachs.io/`) to create checkout sessions,
 Data sent to Bachs can include the order amount and currency, an order reference and ID, return URLs, and available customer name, email, and phone. The plugin stores Bachs IDs and payment state in WooCommerce order metadata. The provider's terms and privacy policy apply to its processing.
 
 == Changelog ==
+
+= 0.3.0 =
+* Add a setup overview to Bachs tools with environment readiness checks and WooCommerce Analytics guidance.
+* Group gateway settings into customer checkout, Sandbox, Live, and webhook sections.
+* Add a clear recovery action when an overlay checkout session is missing or expired.
 
 = 0.2.0 =
 * Add Bachs admin tools for product creation, subscription cancellation, dispute evidence, balances and payouts, virtual accounts, checkout settings, and customer portal sessions.

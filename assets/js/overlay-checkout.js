@@ -3,8 +3,11 @@
 
 	const button = document.getElementById( 'bachs-wc-overlay-open' );
 	const status = document.getElementById( 'bachs-wc-overlay-status' );
+	const hostedLink = document.getElementById( 'bachs-wc-overlay-hosted' );
+	const retryLink = document.getElementById( 'bachs-wc-overlay-retry' );
 	const config = window.BachsWooCheckout;
 	const messages = config && config.messages ? config.messages : {};
+	let sessionExpired = false;
 
 	if ( ! button || ! status || ! config ) {
 		return;
@@ -18,6 +21,9 @@
 		if ( ! event || ! event.type ) {
 			return;
 		}
+		if ( sessionExpired && 'checkout.expired' !== event.type ) {
+			return;
+		}
 
 		if ( 'checkout.completed' === event.type ) {
 			showStatus( messages.completed || 'Payment submitted. Returning to your order; the store will confirm it from Bachs.' );
@@ -28,8 +34,16 @@
 			showStatus( messages.failed || 'The payment did not complete. You can try again.' );
 			button.disabled = false;
 		} else if ( 'checkout.expired' === event.type ) {
-			showStatus( messages.expired || 'This checkout session expired. Return to checkout and start a new payment.' );
+			sessionExpired = true;
+			showStatus( messages.expired || 'This checkout session expired. Return to the payment page to try again.' );
 			button.disabled = true;
+			button.hidden = true;
+			if ( hostedLink ) {
+				hostedLink.hidden = true;
+			}
+			if ( retryLink ) {
+				retryLink.hidden = false;
+			}
 		} else if ( 'checkout.closed' === event.type ) {
 			showStatus( messages.closed || 'Checkout closed. You can reopen it or use the hosted checkout link.' );
 			button.disabled = false;

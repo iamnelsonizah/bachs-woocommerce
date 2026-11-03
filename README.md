@@ -2,7 +2,7 @@
 
 Bachs Payments for WooCommerce adds Bachs hosted checkout to a WooCommerce store. The plugin creates checkout sessions on the server, sends customers to Bachs to enter payment details, and updates orders after signed Bachs notifications or authenticated reconciliation.
 
-> **Current source version:** 0.2.0. This integration is intended to be evaluated in Sandbox first. Verify checkout, webhooks, refunds, and any enabled merchant tools against your Bachs account before using them in Live.
+> **Current source version:** 0.3.0. This integration is intended to be evaluated in Sandbox first. Verify checkout, webhooks, refunds, and any enabled merchant tools against your Bachs account before using them in Live.
 
 ## Contents
 
@@ -32,6 +32,7 @@ Bachs Payments for WooCommerce adds Bachs hosted checkout to a WooCommerce store
 - Signed webhook handling for successful, failed, underpaid, expired, and refund events.
 - Full or partial refund requests from the WooCommerce order screen.
 - Manual payment and refund reconciliation against the Bachs API.
+- A Bachs tools overview with environment readiness checks and direct links to setup and WooCommerce Analytics.
 - Classic checkout, Cart and Checkout Blocks registration, and HPOS compatibility declarations.
 
 The gateway provides one-time WooCommerce payments plus a manager-only screen for selected Bachs merchant resources. It does not reproduce every Bachs dashboard or API feature. See [Known limitations and roadmap](#known-limitations-and-roadmap) for workflows that need a separate integration.
@@ -65,6 +66,8 @@ git archive --format=zip --prefix=bachs-woocommerce/ HEAD --output=bachs-woocomm
 Upload `bachs-woocommerce.zip` in WordPress. The archive must contain a top-level `bachs-woocommerce/` directory with `bachs-woocommerce.php` directly inside it. When a versioned ZIP is attached to a GitHub Release, download that asset and upload it the same way.
 
 After activation, confirm WooCommerce is active. Gateway settings are under **WooCommerce → Settings → Payments → Bachs**; merchant tools are under **WooCommerce → Bachs tools**.
+
+The Bachs tools screen opens on an **Overview** with a short Sandbox-first checklist and checks for the active environment, API key, webhook secret, and HTTPS requirement. Use **WooCommerce → Analytics** for orders, sales, and product reporting; the Bachs tools screen manages Bachs account resources such as disputes and payouts.
 
 ### Install manually
 
@@ -150,6 +153,8 @@ The plugin does not require `webhooks:write`; create webhook destinations in the
 ### Bachs merchant tools
 
 The **WooCommerce → Bachs tools** page is available to users with the `manage_woocommerce` capability. It uses the API key for the currently selected Sandbox or Live environment. Give each key only the permissions needed for the tabs the store will use.
+
+The **Overview** tab checks that the payment method, active environment key, webhook secret, and Live HTTPS requirement are ready. The gateway settings page groups customer checkout choices and credentials by environment. If an overlay checkout expires, the customer can return directly to the WooCommerce payment page and try again; WooCommerce creates a fresh Bachs session when payment is resubmitted.
 
 | Tab | What it does | Important behavior |
 | --- | --- | --- |

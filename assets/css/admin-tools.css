@@ -1,0 +1,47 @@
+.bachs-tools-overview {
+	max-width: 1000px;
+}
+
+.bachs-tools-overview > p {
+	max-width: 760px;
+	font-size: 14px;
+	line-height: 1.6;
+}
+
+.bachs-tools-checks,
+.bachs-tools-next-steps {
+	margin: 22px 0;
+	padding: 18px 22px;
+	border: 1px solid #dcdcde;
+	border-radius: 8px;
+	background: #fff;
+}
+
+.bachs-tools-checks h3,
+.bachs-tools-next-steps h3 {
+	margin-top: 0;
+}
+
+.bachs-tools-checks ul,
+.bachs-tools-next-steps ol {
+	margin: 0 0 12px 1.4em;
+}
+
+.bachs-tools-checks li,
+.bachs-tools-next-steps li {
+	margin: 0 0 10px;
+	line-height: 1.5;
+}
+
+.bachs-tools-checks li > span {
+	display: inline-block;
+	width: 1.4em;
+	color: #176b52;
+	font-weight: 700;
+}
+
+.bachs-tools-checks li > strong {
+	margin-left: 8px;
+	color: #50575e;
+	font-size: 12px;
+}
