@@ -12,6 +12,7 @@ wp-config.php
 
 # Local logs, caches, and generated development output.
 *.log
+bachs-woocommerce-*.zip
 .phpunit.cache/
 coverage/
 vendor/
