@@ -1,5 +1,12 @@
 # Changelog
 
+## 0.3.0
+
+- Added a Bachs tools overview with environment readiness checks, a Sandbox-first setup checklist, and a link to WooCommerce Analytics.
+- Grouped gateway settings into customer checkout, Sandbox, Live, and webhook sections.
+- Added recovery guidance and a direct retry action when an overlay checkout session is missing or expires.
+- Clarified customer-facing payment instructions and updated installation and feature documentation.
+
 ## 0.2.0
 
 - Added the **WooCommerce → Bachs tools** area for Bachs products, subscription administration, disputes, balances and payouts, virtual accounts, checkout settings, and customer portal sessions.
